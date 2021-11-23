@@ -43,7 +43,7 @@ def barcodes(fastq, filename, working_dir):
     spec = """
 	umi_tools whitelist --stdin {fastq} \
 	--bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-	--set-cell-number=2000 \
+	--set-cell-number=5500 \
     --plot-prefix \
 	--log2stderr > whitelist_{filename}.txt;
 	""".format(
@@ -56,7 +56,7 @@ def barcodes(fastq, filename, working_dir):
 
 def extract_barcodes_umis(filename, fastq1, fastq2, whitelist, working_dir):
     inputs = [f'{working_dir}/{filename}_R1.fastq.gz', f'{working_dir}/{filename}_R1.fastq.gz', f'{working_dir}/whitelist_{filename}.txt']
-    outputs = [f'{working_dir}/{filename}_R1_extracted.fastq.gz', f'{working_dir}/{filename}_R2_extracted.fastq.gz']
+    outputs = [f'{working_dir}/{filename}_5500_R1_extracted.fastq.gz', f'{working_dir}/{filename}_5500_R2_extracted.fastq.gz']
     options = {
         "memory": "8g",
         "cores": 1,
@@ -66,9 +66,9 @@ def extract_barcodes_umis(filename, fastq1, fastq2, whitelist, working_dir):
     spec = """
 	umi_tools extract --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
 	--stdin {fastq1} \
-	--stdout {filename}_2000_R1_extracted.fastq.gz \
+	--stdout {filename}_5500_R1_extracted.fastq.gz \
 	--read2-in {fastq2} \
-	--read2-out={filename}_2000_R2_extracted.fastq.gz \
+	--read2-out={filename}_5500_R2_extracted.fastq.gz \
 	--whitelist={whitelist};
 	""".format(
         fastq1=fastq1, fastq2=fastq2, whitelist=whitelist, filename=filename
