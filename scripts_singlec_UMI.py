@@ -11,29 +11,29 @@ import itertools
 gwf = Workflow()
 
 
-def download_data():
+def concatenate_data(filename):
     inputs = []
     outputs = [
-        "/u/home/m/mica20/project-collaboratory/running_star/hgmm_100_fastqs.tar"
+        f"/u/home/m/mica20/project-collaboratory/running_star/{filename}_R1.fastq.gz",
+        f"/u/home/m/mica20/project-collaboratory/running_star/{filename}_R2.fastq.gz"
     ]
     options = {
         "memory": "8g",
         "cores": 1,
         "walltime": "23:59:59",
     }
-    # Step 1: get data
+    # Step 1: get the data
     spec = """
-	wget http://cf.10xgenomics.com/samples/cell-exp/1.3.0/hgmm_100/hgmm_100_fastqs.tar;
-	tar -xf hgmm_100_fastqs.tar;
-	cat fastqs/hgmm_100_S1_L00?_R1_001.fastq.gz > hgmm_100_R1.fastq.gz;
-	cat fastqs/hgmm_100_S1_L00?_R2_001.fastq.gz > hgmm_100_R2.fastq.gz;
-	"""
+	cat {filename}/*R1_001.fastq.gz > {filename}_R1.fastq.gz;
+	cat {filename}/*_R2_001.fastq.gz > {filename}_R2.fastq.gz;
+	""".format(filename=filename)
+    print(spec)
     return inputs, outputs, options, spec
 
 
-def barcodes(fastq):
-    inputs = []
-    outputs = ["/u/home/m/mica20/project-collaboratory/whitelist.txt"]
+def barcodes(fastq, filename, working_dir):
+    inputs = [f'{working_dir}/{filename}_R1.fastq.gz', f'{working_dir}/{filename}_R1.fastq.gz']
+    outputs = [f'{working_dir}/whitelist_{filename}.txt']
     options = {
         "memory": "8g",
         "cores": 1,
@@ -42,18 +42,21 @@ def barcodes(fastq):
     # Step 2: Identify correct cell barcodes
     spec = """
 	umi_tools whitelist --stdin {fastq} \
-	                    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-	                    --set-cell-number=100 \
-	                    --log2stderr > whitelist.txt;
+	--bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+	--set-cell-number=2000 \
+    --plot-prefix \
+	--log2stderr > whitelist_{filename}.txt;
 	""".format(
-        fastq=fastq
+        fastq=fastq,
+        filename=filename
     )
+    print(spec)
     return inputs, outputs, options, spec
 
 
-def extract_barcodes_umis(fastq1, fastq2, whitelist):
-    inputs = []
-    outputs = []
+def extract_barcodes_umis(filename, fastq1, fastq2, whitelist, working_dir):
+    inputs = [f'{working_dir}/{filename}_R1.fastq.gz', f'{working_dir}/{filename}_R1.fastq.gz', f'{working_dir}/whitelist_{filename}.txt']
+    outputs = [f'{working_dir}/{filename}_R1_extracted.fastq.gz', f'{working_dir}/{filename}_R2_extracted.fastq.gz']
     options = {
         "memory": "8g",
         "cores": 1,
@@ -62,32 +65,46 @@ def extract_barcodes_umis(fastq1, fastq2, whitelist):
     # Step 3: Extract barcdoes and UMIs and add to read names
     spec = """
 	umi_tools extract --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-	                  --stdin {fastq1} \
-	                  --stdout hgmm_100_R1_extracted.fastq.gz \
-	                  --read2-in {fastq2} \
-	                  --read2-out=hgmm_100_R2_extracted.fastq.gz \
-	                  --whitelist={whitelist};
+	--stdin {fastq1} \
+	--stdout {filename}_2000_R1_extracted.fastq.gz \
+	--read2-in {fastq2} \
+	--read2-out={filename}_2000_R2_extracted.fastq.gz \
+	--whitelist={whitelist};
 	""".format(
-        fastq1=fastq1, fastq2=fastq2, whitelist=whitelist
+        fastq1=fastq1, fastq2=fastq2, whitelist=whitelist, filename=filename
     )
+    print(spec)
     return inputs, outputs, options, spec
 
 
+# Two folders with single cell data
+sc_folder = ["595_BILs_hTCR", "595_BILs_5GEX"]
+
+
+# Submitting jobs
 directory_analyses = "/u/home/m/mica20/project-collaboratory/running_star"
-print("Downloading samples")
-gwf.target_from_template(f"Download_data", download_data())
+for fol in sc_folder:
+    print("Concatenating samples")
+    gwf.target_from_template(f"Concatenate_data_{fol}", concatenate_data(filename=fol))
 
-print("Extracting barcode from samples")
-gwf.target_from_template(
-    f"Barcode_data", barcodes(fastq=f"{directory_analyses}/hgmm_100_R1.fastq.gz")
-)
+    print("Extracting barcode from samples")
+    gwf.target_from_template(
+        f"Barcode_data_{fol}", 
+        barcodes(
+            fastq=f"{directory_analyses}/{fol}_R1.fastq.gz",
+            filename=fol,
+            working_dir=directory_analyses
+        )
+    )
 
-print("Extract barcdoes and UMIs and add to read names")
-gwf.target_from_template(
-    f"Barcode_data_umis",
-    extract_barcodes_umis(
-        fastq1=f"{directory_analyses}/hgmm_100_R1.fastq.gz",
-        fastq2=f"{directory_analyses}/hgmm_100_R2.fastq.gz",
-        whitelist=f"{directory_analyses}/whitelist.txt",
-    ),
-)
+    print("Extract barcdoes and UMIs and add to read names")
+    gwf.target_from_template(
+        f"Barcode_data_umis_{fol}",
+        extract_barcodes_umis(
+            filename = fol,
+            fastq1=f"{directory_analyses}/{fol}_R1.fastq.gz",
+            fastq2=f"{directory_analyses}/{fol}_R2.fastq.gz",
+            whitelist=f"{directory_analyses}/whitelist_{fol}.txt",
+            working_dir=f"{directory_analyses}"
+        ),
+    )
