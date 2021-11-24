@@ -76,6 +76,19 @@ def extract_barcodes_umis(filename, fastq1, fastq2, whitelist, working_dir):
     print(spec)
     return inputs, outputs, options, spec
 
+def run_viral_tracker(filename, working_dir):
+    inputs = [f'{working_dir}/Parameters_{filename}.txt', f'{working_dir}/Target_file_{filename}.txt']
+    outputs = [f'{working_dir}/595_BILs_{filename}/QC_report.pdf']
+    options = {
+        "memory": "8g",
+        "cores": 1,
+        "walltime": "23:59:59",
+    }
+    spec="""
+    Rscript Viral-Track/Viral_Track_scanning.R Parameters_{filename}.txt Target_file_{filename}.txt 
+    """.format(filename=filename)
+    print(spec)
+    return inputs, outputs, options, spec
 
 # Two folders with single cell data
 sc_folder = ["595_BILs_hTCR", "595_BILs_5GEX"]
@@ -108,3 +121,10 @@ for fol in sc_folder:
             working_dir=f"{directory_analyses}"
         ),
     )
+
+# Running viral track
+names = ["hTCR", "5GEX"]
+for name in names:
+    print("Viral track analyses")
+    gwf.target_from_template(f"Viral_track_data_{name}", run_viral_tracker(filename=name, working_dir=directory_analyses))
+

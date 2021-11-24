@@ -1,0 +1,2 @@
+"/u/home/m/mica20/project-collaboratory/running_star/595_BILs_5GEX_5500_R1_extracted.fastq.gz"
+"/u/home/m/mica20/project-collaboratory/running_star/595_BILs_5GEX_5500_R2_extracted.fastq.gz"
