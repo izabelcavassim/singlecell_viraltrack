@@ -1,4 +1,6 @@
 # Workflow for the pyrho analyses of the wolves data
+# Created by Maria Izabel Cavassim Alves
+# Last edited 8, December, 2021 
 
 from gwf import Workflow
 import glob
@@ -9,6 +11,25 @@ import itertools
 # import pandas as pd
 
 gwf = Workflow()
+
+def indexing_data(index, virus_fasta_file, human_fasta_file):
+    inputs = []
+    outputs = [f"{index}/SAindex"]
+    options = {
+        "memory": "40g",
+        "cores": 1,
+        "walltime": "23:59:59",
+    }
+    spec = """
+    /u/local/Modules/default/init/modules.sh
+    source "/u/local/apps/anaconda3/etc/profile.d/conda.sh"
+    conda activate single_cell
+
+    mkdir index
+    STAR --runMode genomeGenerate --genomeDir {index} --genomeFastaFiles {virus_fasta_file}  {human_fasta_file} --limitGenomeGenerateRAM 25000000000 --runThreadN 12 --genomeSAsparseD 2
+    """.format(index=index, virus_fasta_file=virus_fasta_file, human_fasta_file=human_fasta_file)
+
+    return inputs, outputs, options, spec
 
 
 def concatenate_data(filename):
@@ -90,9 +111,17 @@ def run_viral_tracker(filename, working_dir):
     print(spec)
     return inputs, outputs, options, spec
 
+# Creating index file
+workindir="/u/home/m/mica20/project-collaboratory/running_star"
+index = f"{workindir}/index"
+virus_fasta_file = f"{workindir}/Virusite_file.fa"
+human_fasta_file = f"{workindir}/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+
+gwf.target_from_template("Index_file", indexing_data(index=index, virus_fasta_file=virus_fasta_file, human_fasta_file=human_fasta_file))
+
+
 # Two folders with single cell data
 sc_folder = ["595_BILs_hTCR", "595_BILs_5GEX"]
-
 
 # Submitting jobs
 directory_analyses = "/u/home/m/mica20/project-collaboratory/running_star"
@@ -127,4 +156,3 @@ names = ["hTCR", "5GEX"]
 for name in names:
     print("Viral track analyses")
     gwf.target_from_template(f"Viral_track_data_{name}", run_viral_tracker(filename=name, working_dir=directory_analyses))
-
