@@ -1,6 +1,5 @@
-# Workflow for the pyrho analyses of the wolves data
-# Created by Maria Izabel Cavassim Alves
-# Last edited 8, December, 2021 
+# Workflow for the singlecell analyses using Viral Tracker
+# Author: Maria Izabel Cavassim Alves
 
 from gwf import Workflow
 import glob
@@ -8,25 +7,21 @@ import os
 import os.path
 import itertools
 
-# import pandas as pd
 
+# Defining functions used in this workflow
 gwf = Workflow()
 
 def indexing_data(index, virus_fasta_file, human_fasta_file):
     inputs = []
     outputs = [f"{index}/SAindex"]
     options = {
-        "memory": "40g",
+        "memory": "8g",
         "cores": 1,
         "walltime": "23:59:59",
     }
+    #mkdir index
     spec = """
-    /u/local/Modules/default/init/modules.sh
-    source "/u/local/apps/anaconda3/etc/profile.d/conda.sh"
-    conda activate single_cell
-
-    mkdir index
-    STAR --runMode genomeGenerate --genomeDir {index} --genomeFastaFiles {virus_fasta_file}  {human_fasta_file} --limitGenomeGenerateRAM 25000000000 --runThreadN 12 --genomeSAsparseD 2
+    STAR --runThreadN N --runMode genomeGenerate --genomeDir {index} --genomeFastaFiles {virus_fasta_file}  {human_fasta_file}
     """.format(index=index, virus_fasta_file=virus_fasta_file, human_fasta_file=human_fasta_file)
 
     return inputs, outputs, options, spec
@@ -45,8 +40,8 @@ def concatenate_data(filename):
     }
     # Step 1: get the data
     spec = """
-	cat {filename}/*R1_001.fastq.gz > {filename}_R1.fastq.gz;
-	cat {filename}/*_R2_001.fastq.gz > {filename}_R2.fastq.gz;
+	cat {filename}/*R1_001.fastq*.gz > {filename}_R1.fastq.gz;
+	cat {filename}/*_R2_001.fastq*.gz > {filename}_R2.fastq.gz;
 	""".format(filename=filename)
     print(spec)
     return inputs, outputs, options, spec
@@ -71,7 +66,7 @@ def barcodes(fastq, filename, working_dir):
         fastq=fastq,
         filename=filename
     )
-    print(spec)
+    #print(spec)
     return inputs, outputs, options, spec
 
 
@@ -94,24 +89,57 @@ def extract_barcodes_umis(filename, fastq1, fastq2, whitelist, working_dir):
 	""".format(
         fastq1=fastq1, fastq2=fastq2, whitelist=whitelist, filename=filename
     )
-    print(spec)
+    #print(spec)
     return inputs, outputs, options, spec
 
 def run_viral_tracker(filename, working_dir):
-    inputs = [f'{working_dir}/Parameters_{filename}.txt', f'{working_dir}/Target_file_{filename}.txt']
-    outputs = [f'{working_dir}/595_BILs_{filename}/QC_report.pdf']
+    name1, name2 = filename
+    inputs = [f'{working_dir}/Parameters_{name2}.txt', f'{working_dir}/Target_file_{name2}.txt']
+    outputs = [f'{working_dir}/{name1}_BILs_{name2}_results/{name1}_BILs_{name2}_5500_R2_extracted/QC_report.pdf']
+    print(outputs)
     options = {
         "memory": "8g",
         "cores": 1,
         "walltime": "23:59:59",
     }
     spec="""
-    Rscript Viral-Track/Viral_Track_scanning.R Parameters_{filename}.txt Target_file_{filename}.txt 
-    """.format(filename=filename)
+    Rscript Viral-Track/Viral_Track_scanning.R Parameters_{name2}.txt Target_file_{name2}.txt 
+    """.format(name2=name2)
     print(spec)
     return inputs, outputs, options, spec
 
-# Creating index file
+def run_viral_assembly(filename, working_dir):
+    name1, name2 = filename
+    inputs = [f'{working_dir}/Parameters_{name2}.txt', f'{working_dir}/Target_file_{name2}.txt']
+    outputs = [f'{working_dir}/{name1}_BILs_{name2}_results/X{name1}_BILs_{name2}_results/Merged_GTF.txt']
+    options = {
+        "memory": "8g",
+        "cores": 1,
+        "walltime": "23:59:59",
+    }
+    spec="""
+    Rscript Viral-Track/Viral_Track_transcript_assembly.R Parameters_{name2}.txt Target_file_{name2}.txt 
+    """.format(name2=name2)
+    print(spec)
+    return inputs, outputs, options, spec
+
+def run_sc_demultiplexing(filename, working_dir):
+    name1, name2 = filename
+    inputs = [f'{working_dir}/Parameters_{name2}.txt', f'{working_dir}/Target_file_{name2}.txt']
+    outputs = [f'{working_dir}/{name1}_BILs_{name2}_results/Expression_table.tsv']
+    options = {
+        "memory": "8g",
+        "cores": 1,
+        "walltime": "23:59:59",
+    }
+    spec="""
+    Rscript Viral-Track/Viral_Track_cell_demultiplexing.R Parameters_{name2}.txt Target_file_{name2}.txt 
+    """.format(name2=name2)
+    print(spec)
+    return inputs, outputs, options, spec
+
+
+##### Creating index file #####
 workindir="/u/home/m/mica20/project-collaboratory/running_star"
 index = f"{workindir}/index"
 virus_fasta_file = f"{workindir}/Virusite_file.fa"
@@ -120,8 +148,8 @@ human_fasta_file = f"{workindir}/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
 gwf.target_from_template("Index_file", indexing_data(index=index, virus_fasta_file=virus_fasta_file, human_fasta_file=human_fasta_file))
 
 
-# Two folders with single cell data
-sc_folder = ["595_BILs_hTCR", "595_BILs_5GEX"]
+# Three folders with single cell data
+sc_folder = ["595_BILs_hTCR", "595_BILs_5GEX", "656_BILs_S1"]
 
 # Submitting jobs
 directory_analyses = "/u/home/m/mica20/project-collaboratory/running_star"
@@ -152,7 +180,11 @@ for fol in sc_folder:
     )
 
 # Running viral track
-names = ["hTCR", "5GEX"]
+names = [["595","hTCR"], ["595", "5GEX"], ["656", "S1"]]
 for name in names:
     print("Viral track analyses")
-    gwf.target_from_template(f"Viral_track_data_{name}", run_viral_tracker(filename=name, working_dir=directory_analyses))
+    gwf.target_from_template(f"Viral_track_data_{name[1]}", run_viral_tracker(filename=name, working_dir=directory_analyses))
+    print("Transcriptome assembly of viruses")
+    gwf.target_from_template(f"Viral_track_assembly_{name[1]}", run_viral_assembly(filename=name, working_dir=directory_analyses))
+    print("Single-cell demultiplexing")
+    gwf.target_from_template(f"Viral_track_demultiplexing_{name[1]}", run_sc_demultiplexing(filename=name, working_dir=directory_analyses))
