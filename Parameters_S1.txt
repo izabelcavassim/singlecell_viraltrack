@@ -1,0 +1,11 @@
+N_thread=20
+Output_directory="/u/home/m/mica20/project-collaboratory/running_star/656_BILs_S1_results/"
+Index_genome="/u/home/m/mica20/project-collaboratory/running_star/STARgenome/"
+Viral_annotation_file="/u/home/m/mica20/project-collaboratory/running_star/Virusite_file.fa"
+Name_run="656_BILs_S1_results"
+Load_STAR_module=FALSE
+Load_samtools_module=FALSE
+Load_stringtie_module=FALSE
+Minimal_read_mapped=50
+Single_cell_metadata="/u/home/m/mica20/project-collaboratory/running_star/whitelist_656_BILs_S1.txt"
+
